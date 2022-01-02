@@ -204,6 +204,11 @@ interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
+interface IManna is IERC20 {
+    function mint(address to, uint256 amount) external;
+    function burn(address from, uint256 amount) external;
+}
+
 
 interface IBrightID {
     event Verified(address indexed addr);
@@ -214,7 +219,7 @@ interface IBrightID {
 
 contract ClaimManna is Ownable {
     IBrightID public brightid;
-    IERC20 public mannaToken;
+    IManna public mannaToken;
     mapping(address => uint256) public lastClaim;
     mapping(address => uint256) private previous;
     uint256 public maxClaimable = 7;
@@ -223,7 +228,7 @@ contract ClaimManna is Ownable {
 
     constructor(address brightidAddr, address mannaAddr) {
         brightid = IBrightID(brightidAddr);
-        mannaToken = IERC20(mannaAddr);
+        mannaToken = IManna(mannaAddr);
     }
 
     function setBrightID(address addr) external onlyOwner {
@@ -231,7 +236,7 @@ contract ClaimManna is Ownable {
     }
 
     function setMannaToken(address addr) external onlyOwner {
-        mannaToken = IERC20(addr);
+        mannaToken = IManna(addr);
     }
 
     function setMaxClaimable(uint256 maxClaimable_) external onlyOwner {
@@ -242,8 +247,8 @@ contract ClaimManna is Ownable {
         timePeriod = timePeriod_;
     }
 
-    function approveManna(address spender, uint256 amount) external onlyOwner {
-        mannaToken.approve(spender, amount);
+    function approveToken(address tokenAddr, address spender, uint256 amount) external onlyOwner {
+        IERC20(tokenAddr).approve(spender, amount);
     }
 
     function isVerified(address addr) external view returns (bool) {
@@ -287,7 +292,7 @@ contract ClaimManna is Ownable {
         if (amount > maxClaimable) {
             amount = maxClaimable;
         }
-        mannaToken.transfer(msg.sender, amount * 10 ** mannaToken.decimals());
+        mannaToken.mint(msg.sender, amount * 10 ** mannaToken.decimals());
         addr = msg.sender;
         while (addr != address(0) && previous[addr] == thisCount) {
             lastClaim[addr] = time;
