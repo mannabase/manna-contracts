@@ -285,6 +285,7 @@ contract ClaimManna is Ownable {
             amount = maxClaimable;
         }
         mannaToken.mint(msg.sender, amount * 10 ** mannaToken.decimals());
+        lastClaim[msg.sender] = time;
     }
 }
 
