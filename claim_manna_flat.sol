@@ -258,7 +258,7 @@ contract ClaimManna is Ownable {
     }
 
     function toClaim(address addr) external view returns (uint256) {
-        if (lastClaim[addr] == 0 or brightid.verifications(addr) == 0) {
+        if (lastClaim[addr] == 0 || brightid.verifications(addr) == 0) {
             return 0;
         }
         uint256 amount = (block.timestamp - lastClaim[addr]) / timePeriod;
