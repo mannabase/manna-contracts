@@ -221,10 +221,8 @@ contract ClaimManna is Ownable {
     IBrightID public brightid;
     IManna public mannaToken;
     mapping(address => uint256) public lastClaim;
-    mapping(address => uint256) private previous;
     uint256 public maxClaimable = 7;
     uint256 public timePeriod = 24 * 60 * 60;
-    uint256 public claimCount = 0;
 
     constructor(address brightidAddr, address mannaAddr) {
         brightid = IBrightID(brightidAddr);
@@ -274,6 +272,7 @@ contract ClaimManna is Ownable {
         require (brightid.verifications(msg.sender) > 0, "address is not verified");
         require (lastClaim[msg.sender] == 0, "already registered");
         lastClaim[msg.sender] = block.timestamp;
+        lastClaim[brightid.history(msg.sender)] = 0;
     }
 
     function claim() external {
@@ -281,24 +280,11 @@ contract ClaimManna is Ownable {
         require (brightid.verifications(msg.sender) > 0, "address is not verified");
         require (lastClaim[msg.sender] != 0, "not registered yet");
         uint256 time = block.timestamp;
-        address addr = msg.sender;
-        uint256 thisCount = ++claimCount;
-        while (addr != address(0) && previous[addr] != thisCount) {
-            require (lastClaim[addr] != 0 && (time - lastClaim[addr]) > timePeriod, "no manna to claim");
-            previous[addr] = thisCount;
-            addr = brightid.history(addr);
-        }
         uint256 amount = (time - lastClaim[msg.sender]) / timePeriod;
         if (amount > maxClaimable) {
             amount = maxClaimable;
         }
         mannaToken.mint(msg.sender, amount * 10 ** mannaToken.decimals());
-        addr = msg.sender;
-        while (addr != address(0) && previous[addr] == thisCount) {
-            lastClaim[addr] = time;
-            previous[addr] = 0;
-            addr = brightid.history(addr);
-        }
     }
 }
 
