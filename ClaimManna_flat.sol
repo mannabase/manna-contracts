@@ -2,7 +2,7 @@
 
 // SPDX-License-Identifier: MIT
 
-// File: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/Context.sol
+// File: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v4.4/contracts/utils/Context.sol
 
 
 // OpenZeppelin Contracts v4.4.0 (utils/Context.sol)
@@ -29,10 +29,10 @@ abstract contract Context {
     }
 }
 
-// File: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/access/Ownable.sol
+// File: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v4.4/contracts/access/Ownable.sol
 
 
-// OpenZeppelin Contracts v4.4.0 (access/Ownable.sol)
+// OpenZeppelin Contracts v4.4.1 (access/Ownable.sol)
 
 pragma solidity ^0.8.0;
 
@@ -107,101 +107,15 @@ abstract contract Ownable is Context {
     }
 }
 
-// File: contracts/claim_manna.sol
+// File: ClaimManna.sol
 
 
 pragma solidity ^0.8.10;
 
 
-
 interface IERC20 {
-    /**
-     * @dev Returns the number of decimals used to get its user representation.
-     * For example, if `decimals` equals `2`, a balance of `505` tokens should
-     * be displayed to a user as `5.05` (`505 / 10 ** 2`).
-     *
-     * Tokens usually opt for a value of 18, imitating the relationship between
-     * Ether and Wei. This is the value {ERC20} uses, unless this function is
-     * overridden;
-     *
-     * NOTE: This information is only used for _display_ purposes: it in
-     * no way affects any of the arithmetic of the contract, including
-     * {IERC20-balanceOf} and {IERC20-transfer}.
-     */
     function decimals() external view returns (uint8);
-
-    /**
-     * @dev Returns the amount of tokens in existence.
-     */
-    function totalSupply() external view returns (uint256);
-
-    /**
-     * @dev Returns the amount of tokens owned by `account`.
-     */
-    function balanceOf(address account) external view returns (uint256);
-
-    /**
-     * @dev Moves `amount` tokens from the caller's account to `recipient`.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
-    function transfer(address recipient, uint256 amount) external returns (bool);
-
-    /**
-     * @dev Returns the remaining number of tokens that `spender` will be
-     * allowed to spend on behalf of `owner` through {transferFrom}. This is
-     * zero by default.
-     *
-     * This value changes when {approve} or {transferFrom} are called.
-     */
-    function allowance(address owner, address spender) external view returns (uint256);
-
-    /**
-     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * IMPORTANT: Beware that changing an allowance with this method brings the risk
-     * that someone may use both the old and the new allowance by unfortunate
-     * transaction ordering. One possible solution to mitigate this race
-     * condition is to first reduce the spender's allowance to 0 and set the
-     * desired value afterwards:
-     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
-     *
-     * Emits an {Approval} event.
-     */
     function approve(address spender, uint256 amount) external returns (bool);
-
-    /**
-     * @dev Moves `amount` tokens from `sender` to `recipient` using the
-     * allowance mechanism. `amount` is then deducted from the caller's
-     * allowance.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
-    function transferFrom(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) external returns (bool);
-
-    /**
-     * @dev Emitted when `value` tokens are moved from one account (`from`) to
-     * another (`to`).
-     *
-     * Note that `value` may be zero.
-     */
-    event Transfer(address indexed from, address indexed to, uint256 value);
-
-    /**
-     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
-     * a call to {approve}. `value` is the new allowance.
-     */
-    event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
 interface IManna is IERC20 {
@@ -209,28 +123,28 @@ interface IManna is IERC20 {
     function burn(address from, uint256 amount) external;
 }
 
-
-interface IBrightID {
+interface IMannaBrightID {
     event Verified(address indexed addr);
-    function verifications(address addr) external view returns (uint);
-    function history(address addr) external view returns (address);
+    function isVerified(address addr) external view returns (bool);
+    function verificationTime(address addr) external view returns (uint256);
 }
 
 
 contract ClaimManna is Ownable {
-    IBrightID public brightid;
+    IMannaBrightID public brightid;
     IManna public mannaToken;
     mapping(address => uint256) public lastClaim;
     uint256 public maxClaimable = 7;
-    uint256 public timePeriod = 24 * 60 * 60;
+    uint256 public claimPeriod = 24 * 60 * 60;
+    uint256 public checkPeriod = 14 * 24 * 60 * 60;
 
     constructor(address brightidAddr, address mannaAddr) {
-        brightid = IBrightID(brightidAddr);
+        brightid = IMannaBrightID(brightidAddr);
         mannaToken = IManna(mannaAddr);
     }
 
     function setBrightID(address addr) external onlyOwner {
-        brightid = IBrightID(addr);
+        brightid = IMannaBrightID(addr);
     }
 
     function setMannaToken(address addr) external onlyOwner {
@@ -241,49 +155,61 @@ contract ClaimManna is Ownable {
         maxClaimable = maxClaimable_;
     }
 
-    function setTimePriod(uint256 timePeriod_) external onlyOwner {
-        timePeriod = timePeriod_;
+    function setClaimPeriod(uint256 claimPeriod_) external onlyOwner {
+        claimPeriod = claimPeriod_;
+    }
+
+    function setCheckPeriod(uint256 checkPeriod_) external onlyOwner {
+        checkPeriod = checkPeriod_;
     }
 
     function approveToken(address tokenAddr, address spender, uint256 amount) external onlyOwner {
         IERC20(tokenAddr).approve(spender, amount);
     }
 
-    function isVerified(address addr) external view returns (bool) {
-        return brightid.verifications(addr) > 0;
+    function isVerified(address addr) public view returns (bool) {
+        uint256 time_sec = brightid.verificationTime(addr) / 1000;
+        return (block.timestamp - time_sec) < checkPeriod;
     }
 
-    function isRegistered(address addr) external view returns (bool) {
+    modifier verified {
+        require(isVerified(msg.sender), "ClaimManna: address is not verified");
+        _;
+    }
+
+    function isRegistered(address addr) public view returns (bool) {
         return lastClaim[addr] != 0;
     }
 
+    modifier registered {
+        require(isRegistered(msg.sender), "ClaimManna: address is not registered yet");
+        _;
+    }
+
     function toClaim(address addr) external view returns (uint256) {
-        if (lastClaim[addr] == 0 || brightid.verifications(addr) == 0) {
+        if (lastClaim[addr] == 0) {
             return 0;
         }
-        uint256 amount = (block.timestamp - lastClaim[addr]) / timePeriod;
+        uint256 amount = (block.timestamp - lastClaim[addr]) / claimPeriod;
         if (amount > maxClaimable) {
             amount = maxClaimable;
         }
         return amount;
     }
 
-    function register() external {
-        require (brightid.verifications(msg.sender) > 0, "address is not verified");
-        require (lastClaim[msg.sender] == 0, "already registered");
-        lastClaim[msg.sender] = block.timestamp;
-        lastClaim[brightid.history(msg.sender)] = 0;
+    function register() external verified {
+        require (lastClaim[msg.sender] == 0, "ClaimManna: already registered");
+        lastClaim[msg.sender] = block.timestamp - claimPeriod;
     }
 
-    function claim() external {
-        require (maxClaimable != 0, "contract is stopped");
-        require (brightid.verifications(msg.sender) > 0, "address is not verified");
-        require (lastClaim[msg.sender] != 0, "not registered yet");
+    function claim() external registered verified {
+        require (maxClaimable != 0, "ClaimManna: contract is stopped");
         uint256 time = block.timestamp;
-        uint256 amount = (time - lastClaim[msg.sender]) / timePeriod;
+        uint256 amount = (time - lastClaim[msg.sender]) / claimPeriod;
         if (amount > maxClaimable) {
             amount = maxClaimable;
         }
+        require(amount > 0, "ClaimManna: no Manna to claim for this address");
         mannaToken.mint(msg.sender, amount * 10 ** mannaToken.decimals());
         lastClaim[msg.sender] = time;
     }
